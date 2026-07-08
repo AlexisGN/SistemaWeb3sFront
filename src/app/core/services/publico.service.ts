@@ -1,13 +1,18 @@
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
   CategoriaPublica,
+  ImagenPublica,
   InicioPublicoResponse,
   MarcaPublica,
+  ProductoDetallePublico,
   ProductoPublico,
+  ProductoPublicoFiltros,
+  ProductoPublicoListado,
+  ServicioDetallePublico,
   ServicioPublico
 } from '../models/publico.model';
 
@@ -36,9 +41,72 @@ export class PublicoService {
     );
   }
 
+  obtenerCategorias(): Observable<CategoriaPublica[]> {
+    return this.http.get<CategoriaPublica[]>(`${this.apiUrl}/categorias`).pipe(
+      map(categorias => (categorias || []).map(categoria => this.mapearCategoria(categoria)))
+    );
+  }
+
+  obtenerMarcas(): Observable<MarcaPublica[]> {
+    return this.http.get<MarcaPublica[]>(`${this.apiUrl}/marcas`).pipe(
+      map(marcas => (marcas || []).map(marca => this.mapearMarca(marca)))
+    );
+  }
+
+  obtenerProductos(filtros: ProductoPublicoFiltros = {}): Observable<ProductoPublicoListado> {
+    let params = new HttpParams();
+
+    if (filtros.q?.trim()) {
+      params = params.set('q', filtros.q.trim());
+    }
+
+    if (filtros.idCategoria && filtros.idCategoria > 0) {
+      params = params.set('idCategoria', filtros.idCategoria);
+    }
+
+    if (filtros.idMarca && filtros.idMarca > 0) {
+      params = params.set('idMarca', filtros.idMarca);
+    }
+
+    params = params.set('pagina', filtros.pagina || 1);
+    params = params.set('tamanioPagina', filtros.tamanioPagina || 24);
+
+    return this.http.get<ProductoPublicoListado>(`${this.apiUrl}/productos`, { params }).pipe(
+      map(response => ({
+        ...response,
+        items: (response.items || []).map(producto =>
+          this.mapearProducto(producto, producto.nuevo)
+        )
+      }))
+    );
+  }
+
+  obtenerProductoDetalle(idProducto: number): Observable<ProductoDetallePublico> {
+    return this.http.get<ProductoDetallePublico>(`${this.apiUrl}/productos/${idProducto}`).pipe(
+      map(producto => this.mapearProductoDetalle(producto))
+    );
+  }
+
+  obtenerServicios(): Observable<ServicioPublico[]> {
+    return this.http.get<ServicioPublico[]>(`${this.apiUrl}/servicios`).pipe(
+      map(servicios => (servicios || []).map(servicio => this.mapearServicio(servicio)))
+    );
+  }
+
+  obtenerServicioDetalle(idServicio: number): Observable<ServicioDetallePublico> {
+    return this.http.get<ServicioDetallePublico>(`${this.apiUrl}/servicios/${idServicio}`).pipe(
+      map(servicio => this.mapearServicioDetalle(servicio))
+    );
+  }
+
+  normalizarUrlPublica(url: string | null | undefined): string {
+    return this.normalizarUrlArchivo(url);
+  }
+
   private mapearCategoria(categoria: CategoriaPublica): CategoriaPublica {
     return {
       ...categoria,
+      id: categoria.id || categoria.idCategoria,
       descripcion: categoria.descripcion || 'Productos y soluciones industriales disponibles para cotización.',
       icono: categoria.icono || '🏭'
     };
@@ -61,8 +129,20 @@ export class PublicoService {
       marca: producto.marca || '3S',
       descripcion: producto.descripcion || 'Producto industrial disponible para cotización.',
       imagenUrl: this.normalizarUrlArchivo(producto.imagenUrl),
+      fichaTecnicaPdf: producto.fichaTecnicaPdf
+        ? this.normalizarUrlArchivo(producto.fichaTecnicaPdf)
+        : null,
       nuevo,
-      cantidad: 1
+      cantidad: producto.cantidad && producto.cantidad > 0 ? producto.cantidad : 1
+    };
+  }
+
+  private mapearProductoDetalle(producto: ProductoDetallePublico): ProductoDetallePublico {
+    const productoMapeado = this.mapearProducto(producto, producto.nuevo) as ProductoDetallePublico;
+
+    return {
+      ...productoMapeado,
+      imagenes: (producto.imagenes || []).map(imagen => this.mapearImagen(imagen))
     };
   }
 
@@ -72,6 +152,22 @@ export class PublicoService {
       id: servicio.id || servicio.idServicio,
       descripcion: servicio.descripcion || 'Servicio técnico industrial disponible para consulta.',
       imagenUrl: this.normalizarUrlArchivo(servicio.imagenUrl)
+    };
+  }
+
+  private mapearServicioDetalle(servicio: ServicioDetallePublico): ServicioDetallePublico {
+    const servicioMapeado = this.mapearServicio(servicio) as ServicioDetallePublico;
+
+    return {
+      ...servicioMapeado,
+      imagenes: (servicio.imagenes || []).map(imagen => this.mapearImagen(imagen))
+    };
+  }
+
+  private mapearImagen(imagen: ImagenPublica): ImagenPublica {
+    return {
+      ...imagen,
+      urlImagen: this.normalizarUrlArchivo(imagen.urlImagen)
     };
   }
 

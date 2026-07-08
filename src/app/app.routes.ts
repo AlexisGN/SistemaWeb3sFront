@@ -22,6 +22,53 @@ export const routes: Routes = [
         path: '',
         loadComponent: () =>
           import('./public/pages/inicio-publico/inicio-publico').then(m => m.InicioPublicoComponent)
+      },
+      {
+        path: 'productos',
+        data: {
+          origen: 'productos'
+        },
+        loadComponent: () =>
+          import('./public/pages/productos-publico/productos-publico').then(m => m.ProductosPublicoComponent)
+      },
+      {
+        path: 'productos/:id',
+        loadComponent: () =>
+          import('./public/pages/producto-detalle-publico/producto-detalle-publico').then(m => m.ProductoDetallePublicoComponent)
+      },
+      {
+        path: 'categorias',
+        data: {
+          origen: 'categorias'
+        },
+        loadComponent: () =>
+          import('./public/pages/productos-publico/productos-publico').then(m => m.ProductosPublicoComponent)
+      },
+      {
+        path: 'categorias/:id',
+        data: {
+          origen: 'categoria-detalle'
+        },
+        loadComponent: () =>
+          import('./public/pages/productos-publico/productos-publico').then(m => m.ProductosPublicoComponent)
+      },
+      {
+        path: 'marcas/:id',
+        data: {
+          origen: 'marca-detalle'
+        },
+        loadComponent: () =>
+          import('./public/pages/productos-publico/productos-publico').then(m => m.ProductosPublicoComponent)
+      },
+      {
+        path: 'servicios',
+        loadComponent: () =>
+          import('./public/pages/servicios-publico/servicios-publico').then(m => m.ServiciosPublicoComponent)
+      },
+      {
+        path: 'servicios/:id',
+        loadComponent: () =>
+          import('./public/pages/servicio-detalle-publico/servicio-detalle-publico').then(m => m.ServicioDetallePublicoComponent)
       }
     ]
   },
