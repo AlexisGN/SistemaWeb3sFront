@@ -8,11 +8,29 @@
     </p>
   </div>
 
-  <div class="recent-marquee">
+  <div class="public-status" *ngIf="cargandoInicio">
+    Cargando catálogo público...
+  </div>
+
+  <div class="public-status error" *ngIf="errorInicio">
+    {{ errorInicio }}
+  </div>
+
+  <div class="recent-marquee" *ngIf="productosNuevosCarrusel.length > 0">
     <div class="marquee-track">
-      <article class="recent-card" *ngFor="let producto of productosNuevos">
+      <article
+        class="recent-card"
+        *ngFor="let producto of productosNuevosCarrusel; let i = index; trackBy: trackByProductoCarrusel"
+      >
         <div class="product-image">
-          <img *ngIf="producto.imagenUrl" [src]="producto.imagenUrl" [alt]="producto.nombre" />
+          <img
+            *ngIf="producto.imagenUrl"
+            [src]="producto.imagenUrl"
+            [alt]="producto.nombre"
+            decoding="async"
+            [attr.loading]="i < 4 ? 'eager' : 'lazy'"
+            [attr.fetchpriority]="i < 2 ? 'high' : 'low'"
+          />
 
           <div class="image-placeholder" *ngIf="!producto.imagenUrl">
             <strong>3S</strong>
@@ -21,36 +39,20 @@
         </div>
 
         <div class="recent-body">
-          <small>{{ producto.codigo }} · {{ producto.marca }}</small>
+          <small>
+            {{ producto.codigo }}
+            <ng-container *ngIf="producto.marca"> · {{ producto.marca }}</ng-container>
+          </small>
+
           <h3>{{ producto.nombre }}</h3>
           <p>{{ producto.categoria }}</p>
         </div>
 
         <div class="recent-actions">
           <a href="#catalogo">Ver producto</a>
-          <button type="button" (click)="abrirWhatsAppProducto(producto)">Cotizar</button>
-        </div>
-      </article>
-
-      <article class="recent-card" *ngFor="let producto of productosNuevos">
-        <div class="product-image">
-          <img *ngIf="producto.imagenUrl" [src]="producto.imagenUrl" [alt]="producto.nombre" />
-
-          <div class="image-placeholder" *ngIf="!producto.imagenUrl">
-            <strong>3S</strong>
-            <small>Imagen no disponible</small>
-          </div>
-        </div>
-
-        <div class="recent-body">
-          <small>{{ producto.codigo }} · {{ producto.marca }}</small>
-          <h3>{{ producto.nombre }}</h3>
-          <p>{{ producto.categoria }}</p>
-        </div>
-
-        <div class="recent-actions">
-          <a href="#catalogo">Ver producto</a>
-          <button type="button" (click)="abrirWhatsAppProducto(producto)">Cotizar</button>
+          <button type="button" (click)="abrirWhatsAppProducto(producto)">
+            Cotizar
+          </button>
         </div>
       </article>
     </div>
@@ -69,7 +71,10 @@
 </section>
 
 <section class="category-strip seccion-scroll seccion-categorias" id="categorias">
-  <article class="category-card" *ngFor="let categoria of categorias">
+  <article
+    class="category-card"
+    *ngFor="let categoria of categorias; trackBy: trackByCategoria"
+  >
     <div class="category-icon">{{ categoria.icono }}</div>
 
     <div>
@@ -77,8 +82,13 @@
       <p>{{ categoria.descripcion }}</p>
 
       <div class="category-actions">
-        <a href="#cat-{{ categoria.id }}">Ver productos</a>
-        <a routerLink="/categorias">Ver categoría</a>
+        <a [attr.href]="'#cat-' + (categoria.idCategoria || categoria.id)">
+          Ver productos
+        </a>
+
+        <a routerLink="/categorias">
+          Ver categoría
+        </a>
       </div>
     </div>
   </article>
@@ -87,8 +97,8 @@
 <section class="category-products">
   <article
     class="category-block seccion-scroll seccion-productos"
-    *ngFor="let categoria of categorias"
-    [id]="'cat-' + categoria.id"
+    *ngFor="let categoria of categoriasConProductos; trackBy: trackByCategoria"
+    [id]="'cat-' + (categoria.idCategoria || categoria.id)"
   >
     <div class="category-block-head">
       <div>
@@ -96,13 +106,24 @@
         <h2>Productos para {{ categoria.nombre | lowercase }}</h2>
       </div>
 
-      <a routerLink="/productos">Ver todos</a>
+      <a routerLink="/productos">
+        Ver todos
+      </a>
     </div>
 
     <div class="product-grid">
-      <article class="product-card" *ngFor="let producto of productosPorCategoria(categoria.nombre)">
+      <article
+        class="product-card"
+        *ngFor="let producto of categoria.productosInicio; trackBy: trackByProducto"
+      >
         <div class="product-image">
-          <img *ngIf="producto.imagenUrl" [src]="producto.imagenUrl" [alt]="producto.nombre" />
+          <img
+            *ngIf="producto.imagenUrl"
+            [src]="producto.imagenUrl"
+            [alt]="producto.nombre"
+            loading="lazy"
+            decoding="async"
+          />
 
           <div class="image-placeholder" *ngIf="!producto.imagenUrl">
             <strong>3S</strong>
@@ -111,13 +132,18 @@
         </div>
 
         <div class="product-body">
-          <small>{{ producto.codigo }} · {{ producto.marca }}</small>
+          <small>
+            {{ producto.codigo }}
+            <ng-container *ngIf="producto.marca"> · {{ producto.marca }}</ng-container>
+          </small>
+
           <h3>{{ producto.nombre }}</h3>
           <p>{{ producto.descripcion }}</p>
 
           <div class="product-actions">
             <div class="qty-control">
               <label>Cantidad</label>
+
               <input
                 type="number"
                 min="1"
@@ -136,25 +162,103 @@
   </article>
 </section>
 
+<section
+  class="brands-section seccion-scroll seccion-marcas"
+  id="marcas"
+  *ngIf="marcas.length > 0"
+>
+  <div class="section-heading center">
+    <span>Marcas confiables</span>
+    <h2>Tecnología y aliados que respaldan nuestro trabajo</h2>
+    <p>
+      Trabajamos con marcas reconocidas por su desempeño, calidad y confiabilidad
+      para responder a las exigencias de cada operación industrial.
+    </p>
+  </div>
+
+  <div class="brands-marquee">
+    <div class="brands-track">
+      <a
+        class="brand-card"
+        *ngFor="let marca of marcasCarrusel; let i = index; trackBy: trackByMarcaCarrusel"
+        [routerLink]="['/productos']"
+        [queryParams]="{ marca: marca.nombre }"
+        [title]="'Ver productos de ' + marca.nombre"
+      >
+        <img
+          *ngIf="marca.logoUrl"
+          [src]="marca.logoUrl"
+          [alt]="marca.nombre"
+          loading="lazy"
+          decoding="async"
+        />
+
+        <strong *ngIf="!marca.logoUrl">
+          {{ marca.nombre }}
+        </strong>
+      </a>
+    </div>
+  </div>
+</section>
+
 <section class="services-section seccion-scroll seccion-oscura" id="servicios">
   <div class="section-heading">
     <span>Servicios</span>
     <h2>Servicios técnicos industriales</h2>
     <p>
-      Soporte especializado para mantenimiento, instalación, automatización y
-      continuidad operativa.
+      Conoce nuestras principales soluciones técnicas. Ingresa a cada servicio
+      para revisar el detalle completo o solicita atención por WhatsApp.
     </p>
   </div>
 
   <div class="services-grid">
-    <article class="service-card" *ngFor="let servicio of servicios">
-      <div class="service-icon">{{ servicio.icono }}</div>
-      <h3>{{ servicio.nombre }}</h3>
-      <p>{{ servicio.descripcion }}</p>
+    <article
+      class="service-card"
+      *ngFor="let servicio of servicios; trackBy: trackByServicio"
+    >
+      <a
+        class="service-image service-image-link"
+        [routerLink]="['/servicios', servicio.idServicio || servicio.id]"
+      >
+        <img
+          *ngIf="servicio.imagenUrl"
+          [src]="servicio.imagenUrl"
+          [alt]="servicio.nombre"
+          loading="lazy"
+          decoding="async"
+        />
 
-      <button type="button" (click)="abrirWhatsAppServicio(servicio)">
-        Consultar servicio
-      </button>
+        <div class="image-placeholder service-placeholder" *ngIf="!servicio.imagenUrl">
+          <strong>3S</strong>
+          <small>Imagen no disponible</small>
+        </div>
+      </a>
+
+      <div class="service-body">
+        <span *ngIf="servicio.sectorAplicacion">
+          {{ servicio.sectorAplicacion }}
+        </span>
+
+        <h3>{{ servicio.nombre }}</h3>
+
+        <p>
+          {{ servicio.descripcion }}
+        </p>
+
+        <small class="visit-badge" *ngIf="servicio.requiereVisitaTecnica">
+          Requiere visita técnica
+        </small>
+
+        <div class="service-actions">
+          <a [routerLink]="['/servicios', servicio.idServicio || servicio.id]">
+            Ver servicio
+          </a>
+
+          <button type="button" (click)="abrirWhatsAppServicio(servicio)">
+            Consultar
+          </button>
+        </div>
+      </div>
     </article>
   </div>
 </section>
@@ -170,8 +274,13 @@
   </div>
 
   <div class="cta-actions">
-    <a routerLink="/cliente/login">Iniciar sesión</a>
-    <a routerLink="/cliente/registro" class="secondary">Crear cuenta</a>
+    <a routerLink="/cliente/login">
+      Iniciar sesión
+    </a>
+
+    <a routerLink="/cliente/registro" class="secondary">
+      Crear cuenta
+    </a>
   </div>
 </section>
 
@@ -185,19 +294,25 @@
     <article>
       <strong>1</strong>
       <h3>Elige productos</h3>
-      <p>Revisa el catálogo, selecciona cantidad y marca tus productos de interés.</p>
+      <p>
+        Revisa el catálogo, selecciona cantidad y marca tus productos de interés.
+      </p>
     </article>
 
     <article>
       <strong>2</strong>
       <h3>Envía tu solicitud</h3>
-      <p>Cotiza por WhatsApp o agrega varios productos a tu carrito de cotización.</p>
+      <p>
+        Cotiza por WhatsApp o agrega varios productos a tu carrito de cotización.
+      </p>
     </article>
 
     <article>
       <strong>3</strong>
       <h3>Recibe respuesta</h3>
-      <p>El equipo comercial confirma precio, disponibilidad y condiciones de atención.</p>
+      <p>
+        El equipo comercial confirma precio, disponibilidad y condiciones de atención.
+      </p>
     </article>
   </div>
 </section>

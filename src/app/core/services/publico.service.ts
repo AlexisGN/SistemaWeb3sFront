@@ -1,0 +1,120 @@
+import { HttpClient } from '@angular/common/http';
+import { Injectable } from '@angular/core';
+import { map, Observable } from 'rxjs';
+
+import { environment } from '../../../environments/environment';
+import {
+  CategoriaPublica,
+  InicioPublicoResponse,
+  MarcaPublica,
+  ProductoPublico,
+  ServicioPublico
+} from '../models/publico.model';
+
+@Injectable({
+  providedIn: 'root'
+})
+export class PublicoService {
+  private readonly apiUrl = `${environment.apiUrl}/publico`;
+  private readonly baseArchivosUrl = environment.apiUrl.replace(/\/api\/?$/, '');
+
+  constructor(private http: HttpClient) {}
+
+  obtenerInicio(): Observable<InicioPublicoResponse> {
+    return this.http.get<InicioPublicoResponse>(`${this.apiUrl}/inicio`).pipe(
+      map(response => ({
+        categorias: (response.categorias || []).map(categoria => this.mapearCategoria(categoria)),
+        marcas: (response.marcas || []).map(marca => this.mapearMarca(marca)),
+        productosNuevos: (response.productosNuevos || []).map(producto =>
+          this.mapearProducto(producto, true)
+        ),
+        productos: (response.productos || []).map(producto =>
+          this.mapearProducto(producto, producto.nuevo)
+        ),
+        servicios: (response.servicios || []).map(servicio => this.mapearServicio(servicio))
+      }))
+    );
+  }
+
+  private mapearCategoria(categoria: CategoriaPublica): CategoriaPublica {
+    return {
+      ...categoria,
+      descripcion: categoria.descripcion || 'Productos y soluciones industriales disponibles para cotización.',
+      icono: categoria.icono || '🏭'
+    };
+  }
+
+  private mapearMarca(marca: MarcaPublica): MarcaPublica {
+    const logoLocal = this.obtenerLogoMarcaLocal(marca.nombre);
+
+    return {
+      ...marca,
+      id: marca.id || marca.idMarca,
+      logoUrl: this.normalizarUrlArchivo(marca.logoUrl) || logoLocal
+    };
+  }
+
+  private mapearProducto(producto: ProductoPublico, nuevo: boolean): ProductoPublico {
+    return {
+      ...producto,
+      id: producto.id || producto.idProducto,
+      marca: producto.marca || '3S',
+      descripcion: producto.descripcion || 'Producto industrial disponible para cotización.',
+      imagenUrl: this.normalizarUrlArchivo(producto.imagenUrl),
+      nuevo,
+      cantidad: 1
+    };
+  }
+
+  private mapearServicio(servicio: ServicioPublico): ServicioPublico {
+    return {
+      ...servicio,
+      id: servicio.id || servicio.idServicio,
+      descripcion: servicio.descripcion || 'Servicio técnico industrial disponible para consulta.',
+      imagenUrl: this.normalizarUrlArchivo(servicio.imagenUrl)
+    };
+  }
+
+  private normalizarUrlArchivo(url: string | null | undefined): string {
+    if (!url) {
+      return '';
+    }
+
+    const valor = url.trim();
+
+    if (!valor) {
+      return '';
+    }
+
+    if (valor.startsWith('http://') || valor.startsWith('https://')) {
+      return valor;
+    }
+
+    if (valor.startsWith('/assets/') || valor.startsWith('assets/')) {
+      return valor.startsWith('/') ? valor : `/${valor}`;
+    }
+
+    if (valor.startsWith('/')) {
+      return `${this.baseArchivosUrl}${valor}`;
+    }
+
+    return `${this.baseArchivosUrl}/${valor}`;
+  }
+
+  private obtenerLogoMarcaLocal(nombre: string): string {
+    const marca = nombre.trim().toLowerCase();
+
+    const logos: Record<string, string> = {
+      abb: '/assets/images/Abb.webp',
+      autonics: '/assets/images/Autonics.webp',
+      danfoss: '/assets/images/Danfoss.webp',
+      honeywell: '/assets/images/Honeywell.webp',
+      lamtec: '/assets/images/Lamtec.webp',
+      novus: '/assets/images/Novus.webp',
+      siemens: '/assets/images/Siemens.webp',
+      yokogawa: '/assets/images/Yokogawa.webp'
+    };
+
+    return logos[marca] || '';
+  }
+}
