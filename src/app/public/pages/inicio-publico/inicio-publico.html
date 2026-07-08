@@ -1,0 +1,203 @@
+<section class="recent-section seccion-scroll seccion-clara" id="inicio">
+  <div class="section-heading center">
+    <span>Nuevos ingresos</span>
+    <h1>Últimos productos agregados</h1>
+    <p>
+      Explora productos industriales recientemente incorporados al catálogo 3S.
+      Consulta disponibilidad y recibe una cotización personalizada.
+    </p>
+  </div>
+
+  <div class="recent-marquee">
+    <div class="marquee-track">
+      <article class="recent-card" *ngFor="let producto of productosNuevos">
+        <div class="product-image">
+          <img *ngIf="producto.imagenUrl" [src]="producto.imagenUrl" [alt]="producto.nombre" />
+
+          <div class="image-placeholder" *ngIf="!producto.imagenUrl">
+            <strong>3S</strong>
+            <small>Imagen no disponible</small>
+          </div>
+        </div>
+
+        <div class="recent-body">
+          <small>{{ producto.codigo }} · {{ producto.marca }}</small>
+          <h3>{{ producto.nombre }}</h3>
+          <p>{{ producto.categoria }}</p>
+        </div>
+
+        <div class="recent-actions">
+          <a href="#catalogo">Ver producto</a>
+          <button type="button" (click)="abrirWhatsAppProducto(producto)">Cotizar</button>
+        </div>
+      </article>
+
+      <article class="recent-card" *ngFor="let producto of productosNuevos">
+        <div class="product-image">
+          <img *ngIf="producto.imagenUrl" [src]="producto.imagenUrl" [alt]="producto.nombre" />
+
+          <div class="image-placeholder" *ngIf="!producto.imagenUrl">
+            <strong>3S</strong>
+            <small>Imagen no disponible</small>
+          </div>
+        </div>
+
+        <div class="recent-body">
+          <small>{{ producto.codigo }} · {{ producto.marca }}</small>
+          <h3>{{ producto.nombre }}</h3>
+          <p>{{ producto.categoria }}</p>
+        </div>
+
+        <div class="recent-actions">
+          <a href="#catalogo">Ver producto</a>
+          <button type="button" (click)="abrirWhatsAppProducto(producto)">Cotizar</button>
+        </div>
+      </article>
+    </div>
+  </div>
+</section>
+
+<section class="catalog-intro seccion-scroll seccion-suave" id="catalogo">
+  <div>
+    <span>Catálogo industrial 3S</span>
+    <h2>Soluciones para operación, mantenimiento y automatización industrial</h2>
+    <p>
+      Encuentra productos organizados por categoría y solicita cotizaciones
+      según disponibilidad, marca, aplicación técnica o requerimiento de tu empresa.
+    </p>
+  </div>
+</section>
+
+<section class="category-strip seccion-scroll seccion-categorias" id="categorias">
+  <article class="category-card" *ngFor="let categoria of categorias">
+    <div class="category-icon">{{ categoria.icono }}</div>
+
+    <div>
+      <h3>{{ categoria.nombre }}</h3>
+      <p>{{ categoria.descripcion }}</p>
+
+      <div class="category-actions">
+        <a href="#cat-{{ categoria.id }}">Ver productos</a>
+        <a routerLink="/categorias">Ver categoría</a>
+      </div>
+    </div>
+  </article>
+</section>
+
+<section class="category-products">
+  <article
+    class="category-block seccion-scroll seccion-productos"
+    *ngFor="let categoria of categorias"
+    [id]="'cat-' + categoria.id"
+  >
+    <div class="category-block-head">
+      <div>
+        <span>{{ categoria.nombre }}</span>
+        <h2>Productos para {{ categoria.nombre | lowercase }}</h2>
+      </div>
+
+      <a routerLink="/productos">Ver todos</a>
+    </div>
+
+    <div class="product-grid">
+      <article class="product-card" *ngFor="let producto of productosPorCategoria(categoria.nombre)">
+        <div class="product-image">
+          <img *ngIf="producto.imagenUrl" [src]="producto.imagenUrl" [alt]="producto.nombre" />
+
+          <div class="image-placeholder" *ngIf="!producto.imagenUrl">
+            <strong>3S</strong>
+            <small>Imagen no disponible</small>
+          </div>
+        </div>
+
+        <div class="product-body">
+          <small>{{ producto.codigo }} · {{ producto.marca }}</small>
+          <h3>{{ producto.nombre }}</h3>
+          <p>{{ producto.descripcion }}</p>
+
+          <div class="product-actions">
+            <div class="qty-control">
+              <label>Cantidad</label>
+              <input
+                type="number"
+                min="1"
+                [(ngModel)]="producto.cantidad"
+                (change)="normalizarCantidad(producto)"
+              />
+            </div>
+
+            <button type="button" (click)="abrirWhatsAppProducto(producto)">
+              Cotizar
+            </button>
+          </div>
+        </div>
+      </article>
+    </div>
+  </article>
+</section>
+
+<section class="services-section seccion-scroll seccion-oscura" id="servicios">
+  <div class="section-heading">
+    <span>Servicios</span>
+    <h2>Servicios técnicos industriales</h2>
+    <p>
+      Soporte especializado para mantenimiento, instalación, automatización y
+      continuidad operativa.
+    </p>
+  </div>
+
+  <div class="services-grid">
+    <article class="service-card" *ngFor="let servicio of servicios">
+      <div class="service-icon">{{ servicio.icono }}</div>
+      <h3>{{ servicio.nombre }}</h3>
+      <p>{{ servicio.descripcion }}</p>
+
+      <button type="button" (click)="abrirWhatsAppServicio(servicio)">
+        Consultar servicio
+      </button>
+    </article>
+  </div>
+</section>
+
+<section class="register-cta seccion-scroll seccion-cta">
+  <div>
+    <span>Cliente 3S</span>
+    <h2>Crea tu cuenta y cotiza más rápido</h2>
+    <p>
+      Regístrate para armar solicitudes con varios productos, guardar tus datos
+      y enviar cotizaciones web directamente al equipo comercial.
+    </p>
+  </div>
+
+  <div class="cta-actions">
+    <a routerLink="/cliente/login">Iniciar sesión</a>
+    <a routerLink="/cliente/registro" class="secondary">Crear cuenta</a>
+  </div>
+</section>
+
+<section class="quote-steps seccion-scroll seccion-suave">
+  <div class="section-heading center">
+    <span>Cómo cotizar</span>
+    <h2>Solicitud rápida y atención personalizada</h2>
+  </div>
+
+  <div class="steps-grid">
+    <article>
+      <strong>1</strong>
+      <h3>Elige productos</h3>
+      <p>Revisa el catálogo, selecciona cantidad y marca tus productos de interés.</p>
+    </article>
+
+    <article>
+      <strong>2</strong>
+      <h3>Envía tu solicitud</h3>
+      <p>Cotiza por WhatsApp o agrega varios productos a tu carrito de cotización.</p>
+    </article>
+
+    <article>
+      <strong>3</strong>
+      <h3>Recibe respuesta</h3>
+      <p>El equipo comercial confirma precio, disponibilidad y condiciones de atención.</p>
+    </article>
+  </div>
+</section>

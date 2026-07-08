@@ -1,0 +1,714 @@
+<div class="cotizaciones-page">
+  <section class="page-hero">
+    <div class="page-hero__content">
+      <span class="hero-chip">Bandeja comercial</span>
+
+      <h1>Gestión de cotizaciones</h1>
+
+      <p>
+        Administra solicitudes comerciales, cotizaciones web, cotizaciones manuales,
+        PDF automático, correo, WhatsApp Web y preparación para venta.
+      </p>
+    </div>
+
+    <div class="page-hero__stats">
+      <div class="hero-stat">
+        <span class="hero-stat__number">{{ totalRegistros }}</span>
+        <span class="hero-stat__label">Cotizaciones registradas</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="cotizaciones-grid">
+    <article class="panel panel-form">
+      <div class="panel-header">
+        <div>
+          <h2>Nueva cotización</h2>
+
+          <p>
+            Registra una propuesta comercial para el cliente. El estado inicial será
+            Pendiente y el PDF se generará automáticamente.
+          </p>
+        </div>
+      </div>
+
+      <form class="cotizacion-form" (ngSubmit)="guardarCotizacion()" #cotizacionForm="ngForm">
+        <div class="field field-full">
+          <label>Cliente</label>
+
+          <select [(ngModel)]="cotizacion.idCliente" name="idCliente" required>
+            <option [ngValue]="0">Selecciona un cliente</option>
+
+            <option *ngFor="let cliente of clientes" [ngValue]="cliente.idCliente">
+              {{ cliente.textoMostrar }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Origen</label>
+
+          <select [(ngModel)]="cotizacion.origenCotizacion" name="origenCotizacion" required>
+            <option *ngFor="let origen of origenesCotizacion" [ngValue]="origen">
+              {{ origen }}
+            </option>
+          </select>
+        </div>
+
+        <div class="field">
+          <label>Estado inicial</label>
+
+          <input type="text" value="Pendiente" disabled />
+        </div>
+
+        <div class="field">
+          <label>Descuento general</label>
+
+          <input
+            type="number"
+            [(ngModel)]="cotizacion.descuento"
+            name="descuento"
+            min="0"
+            step="0.01"
+            placeholder="0.00"
+          />
+        </div>
+
+        <div class="field">
+          <label>IGV</label>
+
+          <input type="text" value="Incluido en el precio" disabled />
+        </div>
+
+        <div class="field field-full">
+          <label>Observación para el cliente</label>
+
+          <textarea
+            [(ngModel)]="cotizacion.observacion"
+            name="observacion"
+            rows="3"
+            placeholder="Ej. Cotización válida por 7 días, entrega sujeta a disponibilidad, precio referencial sujeto a evaluación técnica..."
+          ></textarea>
+        </div>
+
+        <div class="field field-full detail-section">
+          <div class="detail-title">
+            <h3>Detalle de cotización</h3>
+            <span>Total: S/ {{ calcularTotal() | number:'1.2-2' }}</span>
+          </div>
+
+          <div class="detail-form detail-form-clean">
+            <div class="field">
+              <label>Tipo</label>
+
+              <select
+                [(ngModel)]="tipoElementoDetalle"
+                name="tipoElementoDetalle"
+                (change)="cambiarTipoElementoDetalle()"
+              >
+                <option *ngFor="let tipo of tiposElementoDetalle" [ngValue]="tipo">
+                  {{ tipo }}
+                </option>
+              </select>
+            </div>
+
+            <div class="field field-elemento">
+              <label>{{ tipoElementoDetalle }}</label>
+
+              <select
+                [(ngModel)]="detalleTemporal.idElementoCatalogo"
+                name="idElementoCatalogoDetalle"
+                (change)="seleccionarElementoDetalle()"
+              >
+                <option [ngValue]="0">Selecciona {{ tipoElementoDetalle | lowercase }}</option>
+
+                <option
+                  *ngFor="let elemento of elementosCotizablesFiltrados()"
+                  [ngValue]="elemento.idElementoCatalogo"
+                >
+                  {{ elemento.nombre }}
+                </option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label>Cantidad</label>
+
+              <input
+                type="number"
+                [(ngModel)]="detalleTemporal.cantidad"
+                name="cantidadDetalle"
+                min="1"
+              />
+            </div>
+
+            <div class="field">
+              <label>Precio con IGV</label>
+
+              <input
+                type="number"
+                [(ngModel)]="detalleTemporal.precioUnitario"
+                name="precioUnitarioDetalle"
+                min="0"
+                step="0.01"
+                placeholder="0.00"
+              />
+            </div>
+
+            <div class="field field-full price-preview" *ngIf="detalleTemporal.idElementoCatalogo > 0">
+              <div>
+                <span>Precio referencial con IGV</span>
+                <strong>S/ {{ obtenerPrecioReferencialDetalle() | number:'1.2-2' }}</strong>
+              </div>
+
+              <div>
+                <span>Subtotal calculado</span>
+                <strong>S/ {{ calcularSubtotalTemporal() | number:'1.2-2' }}</strong>
+              </div>
+            </div>
+
+            <div class="field field-full">
+              <label>Observación del detalle</label>
+
+              <input
+                type="text"
+                [(ngModel)]="detalleTemporal.observacion"
+                name="observacionDetalle"
+                placeholder="Ej. Requiere visita técnica, condición técnica específica o comentario para el cliente..."
+              />
+            </div>
+
+            <div class="field field-full">
+              <button type="button" class="btn btn-dark" (click)="agregarDetalle()">
+                Agregar detalle
+              </button>
+            </div>
+          </div>
+
+          <div class="detail-list" *ngIf="cotizacion.detalles.length > 0">
+            <div
+              class="detail-card"
+              *ngFor="let detalle of cotizacion.detalles; let i = index; trackBy: trackByDetalle"
+            >
+              <div class="detail-card__header">
+                <div class="detail-card__main">
+                  <strong>{{ obtenerNombreElemento(detalle.idElementoCatalogo) }}</strong>
+                  <small>{{ obtenerTipoElemento(detalle.idElementoCatalogo) }}</small>
+                </div>
+
+                <button type="button" class="btn-mini-delete" (click)="quitarDetalle(i)">
+                  Quitar
+                </button>
+              </div>
+
+              <div class="detail-card__amounts">
+                <div>
+                  <span>Cantidad</span>
+                  <strong>{{ detalle.cantidad }}</strong>
+                </div>
+
+                <div>
+                  <span>Precio con IGV</span>
+                  <strong>S/ {{ detalle.precioUnitario | number:'1.2-2' }}</strong>
+                </div>
+
+                <div>
+                  <span>Subtotal</span>
+                  <strong>S/ {{ calcularSubtotal(detalle) | number:'1.2-2' }}</strong>
+                </div>
+              </div>
+
+              <p class="detail-card__note" *ngIf="detalle.observacion">
+                {{ detalle.observacion }}
+              </p>
+            </div>
+          </div>
+
+          <div class="detail-empty" *ngIf="cotizacion.detalles.length === 0">
+            Agrega productos o servicios para completar la cotización.
+          </div>
+        </div>
+
+        <div class="field field-full resumen-totales">
+          <div>
+            <span>Subtotal con IGV</span>
+            <strong>S/ {{ calcularSubtotalGeneral() | number:'1.2-2' }}</strong>
+          </div>
+
+          <div>
+            <span>Descuento</span>
+            <strong>S/ {{ (cotizacion.descuento || 0) | number:'1.2-2' }}</strong>
+          </div>
+
+          <div>
+            <span>Valor venta</span>
+            <strong>S/ {{ calcularValorVenta() | number:'1.2-2' }}</strong>
+          </div>
+
+          <div>
+            <span>IGV incluido 18%</span>
+            <strong>S/ {{ calcularIgv() | number:'1.2-2' }}</strong>
+          </div>
+
+          <div class="total-final">
+            <span>Total referencial</span>
+            <strong>S/ {{ calcularTotal() | number:'1.2-2' }}</strong>
+          </div>
+        </div>
+
+        <div class="field field-full stock-note">
+          <span>
+            Los precios incluyen IGV. La cotización se registrará como Pendiente y el PDF se generará automáticamente.
+          </span>
+        </div>
+
+        <div class="field field-full form-actions">
+          <button
+            type="submit"
+            class="btn btn-primary"
+            [disabled]="guardando || cargandoCombos || !cotizacionForm.valid"
+          >
+            {{ guardando ? 'Registrando...' : 'Registrar cotización' }}
+          </button>
+
+          <button type="button" class="btn btn-secondary" (click)="limpiarFormulario()">
+            Limpiar
+          </button>
+        </div>
+      </form>
+
+      <div *ngIf="mensaje" class="alert success">
+        {{ mensaje }}
+      </div>
+
+      <div *ngIf="error" class="alert error">
+        {{ error }}
+      </div>
+    </article>
+
+    <article class="panel panel-list">
+      <div class="panel-header">
+        <div>
+          <h2>Cotizaciones registradas</h2>
+
+          <p>
+            Bandeja de solicitudes comerciales recibidas por web, WhatsApp, correo o registro manual.
+          </p>
+        </div>
+      </div>
+
+      <div class="filters-card">
+        <div class="search-bar">
+          <input
+            type="text"
+            [(ngModel)]="buscar"
+            name="buscar"
+            placeholder="Buscar por cliente, documento, estado, origen u observación..."
+            (keyup.enter)="buscarCotizaciones()"
+          />
+
+          <button type="button" class="btn btn-dark" (click)="buscarCotizaciones()">
+            Buscar
+          </button>
+        </div>
+
+        <div class="filters-row">
+          <div class="field">
+            <label>Estado</label>
+
+            <select [(ngModel)]="estadoFiltro" name="estadoFiltro" (change)="buscarCotizaciones()">
+              <option value="">Todos</option>
+
+              <option *ngFor="let estado of estados" [value]="estado.nombre">
+                {{ estado.nombre }}
+              </option>
+            </select>
+          </div>
+
+          <div class="field">
+            <label>Origen</label>
+
+            <select [(ngModel)]="origenFiltro" name="origenFiltro" (change)="buscarCotizaciones()">
+              <option value="">Todos</option>
+
+              <option *ngFor="let origen of origenesCotizacion" [value]="origen">
+                {{ origen }}
+              </option>
+            </select>
+          </div>
+
+          <button type="button" class="btn btn-secondary btn-filter-clear" (click)="limpiarFiltros()">
+            Limpiar filtros
+          </button>
+        </div>
+      </div>
+
+      <div *ngIf="cargando" class="estado-box">
+        Cargando cotizaciones...
+      </div>
+
+      <div *ngIf="!cargando && cotizaciones.length === 0" class="estado-box">
+        No hay cotizaciones registradas.
+      </div>
+
+      <div class="cotizaciones-list" *ngIf="!cargando && cotizaciones.length > 0">
+        <div
+          class="cotizacion-card"
+          *ngFor="let item of cotizaciones; trackBy: trackByCotizacion"
+        >
+          <div class="cotizacion-card__body">
+            <div class="cotizacion-card__top">
+              <div>
+                <h3>{{ obtenerCodigoCotizacion(item) }}</h3>
+
+                <p>{{ item.cliente }}</p>
+
+                <small>
+                  {{ item.tipoDocumentoCliente }} {{ item.documentoCliente }} · {{ item.tipoCliente }}
+                </small>
+              </div>
+
+              <div class="badges-column">
+                <span
+                  class="estado-badge"
+                  [ngClass]="obtenerClaseEstado(item.estadoCotizacion)"
+                >
+                  {{ item.estadoCotizacion }}
+                </span>
+
+                <span
+                  class="origen-badge"
+                  [ngClass]="obtenerClaseOrigen(item.origenCotizacion)"
+                >
+                  {{ item.origenCotizacion }}
+                </span>
+              </div>
+            </div>
+
+            <div class="cotizacion-tags">
+              <span>{{ item.fechaCotizacion | date:'dd/MM/yyyy' }}</span>
+              <span>{{ item.cantidadDetalles }} detalle(s)</span>
+              <span>{{ obtenerTextoPdf(item) }}</span>
+              <span>{{ obtenerTextoCorreo(item) }}</span>
+              <span>{{ obtenerTextoWhatsApp(item) }}</span>
+            </div>
+
+            <div class="cotizacion-meta">
+              <div>
+                <small>Subtotal con IGV</small>
+                <strong>S/ {{ item.subtotal | number:'1.2-2' }}</strong>
+              </div>
+
+              <div>
+                <small>Descuento</small>
+                <strong>S/ {{ item.descuento | number:'1.2-2' }}</strong>
+              </div>
+
+              <div>
+                <small>IGV incluido</small>
+                <strong>S/ {{ item.igv | number:'1.2-2' }}</strong>
+              </div>
+
+              <div class="meta-total">
+                <small>Total referencial</small>
+                <strong>S/ {{ item.total | number:'1.2-2' }}</strong>
+              </div>
+            </div>
+
+            <p class="cotizacion-observacion">
+              {{ item.observacion || 'Sin observación registrada.' }}
+            </p>
+          </div>
+
+          <div class="cotizacion-card__actions">
+            <button
+              type="button"
+              class="btn btn-light"
+              (click)="verDetalle(item)"
+              [disabled]="estaProcesando(item, 'detalle')"
+            >
+              {{ estaProcesando(item, 'detalle') ? 'Cargando...' : 'Detalle' }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-dark"
+              (click)="generarPdf(item)"
+              [disabled]="estaProcesando(item, 'pdf') || !puedeGenerarPdf(item)"
+              *ngIf="!item.archivoPdf && puedeGenerarPdf(item)"
+            >
+              {{ estaProcesando(item, 'pdf') ? 'Generando...' : 'Generar PDF' }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-dark"
+              (click)="abrirPdf(item)"
+              [disabled]="estaProcesando(item, 'pdf')"
+              *ngIf="item.archivoPdf"
+            >
+              Ver PDF
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-mail"
+              (click)="enviarCorreo(item)"
+              [disabled]="estaProcesando(item, 'correo') || !puedeEnviarCorreo(item)"
+              *ngIf="puedeEnviarCorreo(item)"
+            >
+              {{
+                estaProcesando(item, 'correo')
+                  ? 'Enviando...'
+                  : obtenerTextoBotonCorreo(item)
+              }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-whatsapp"
+              (click)="enviarWhatsApp(item)"
+              [disabled]="estaProcesando(item, 'whatsapp') || !puedeEnviarWhatsApp(item)"
+              *ngIf="puedeEnviarWhatsApp(item)"
+            >
+              {{
+                estaProcesando(item, 'whatsapp')
+                  ? 'Preparando...'
+                  : obtenerTextoBotonWhatsApp(item)
+              }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-approve"
+              (click)="aprobarCotizacion(item)"
+              [disabled]="estaProcesando(item, 'aprobar') || !puedeAprobar(item)"
+              *ngIf="puedeAprobar(item)"
+            >
+              {{ estaProcesando(item, 'aprobar') ? 'Aprobando...' : 'Aprobar' }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-sale"
+              (click)="prepararVenta(item)"
+              [disabled]="estaProcesando(item, 'venta') || !puedeConvertirEnVenta(item)"
+              *ngIf="puedeConvertirEnVenta(item)"
+            >
+              {{ estaProcesando(item, 'venta') ? 'Preparando...' : 'Venta' }}
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-light"
+              (click)="verVenta(item)"
+              *ngIf="puedeVerVenta(item)"
+            >
+              Ver venta
+            </button>
+
+            <button
+              type="button"
+              class="btn btn-delete"
+              (click)="cancelarCotizacion(item)"
+              [disabled]="estaProcesando(item, 'cancelar') || !puedeCancelar(item)"
+              *ngIf="puedeCancelar(item)"
+            >
+              {{ estaProcesando(item, 'cancelar') ? 'Cancelando...' : 'Cancelar' }}
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="pagination-bar" *ngIf="!cargando && totalRegistros > 0">
+        <div class="pagination-info">
+          Mostrando {{ cotizaciones.length }} de {{ totalRegistros }} cotizaciones
+        </div>
+
+        <div class="pagination-controls">
+          <select
+            [(ngModel)]="tamanioPagina"
+            name="tamanioPagina"
+            (change)="cambiarTamanioPagina()"
+          >
+            <option *ngFor="let opcion of opcionesTamanioPagina" [ngValue]="opcion">
+              {{ opcion }} por página
+            </option>
+          </select>
+
+          <button
+            type="button"
+            class="btn btn-page"
+            (click)="paginaAnterior()"
+            [disabled]="pagina <= 1"
+          >
+            Anterior
+          </button>
+
+          <span>Página {{ pagina }} de {{ totalPaginas || 1 }}</span>
+
+          <button
+            type="button"
+            class="btn btn-page"
+            (click)="paginaSiguiente()"
+            [disabled]="pagina >= totalPaginas"
+          >
+            Siguiente
+          </button>
+        </div>
+      </div>
+    </article>
+  </section>
+
+  <div class="modal-backdrop" *ngIf="detalleVisible">
+    <div class="modal-card modal-detail">
+      <div class="modal-header">
+        <div>
+          <h2>Detalle de cotización</h2>
+
+          <p *ngIf="cotizacionSeleccionada as seleccionada">
+            {{ seleccionada.codigoCotizacion || obtenerCodigoCotizacion(seleccionada) }}
+          </p>
+        </div>
+
+        <button type="button" class="modal-close" (click)="cerrarDetalle()">
+          ×
+        </button>
+      </div>
+
+      <div class="modal-body" *ngIf="cotizacionSeleccionada as seleccionada">
+        <div class="detail-summary">
+          <div>
+            <span>Cliente</span>
+            <strong>{{ seleccionada.cliente }}</strong>
+          </div>
+
+          <div>
+            <span>Documento</span>
+            <strong>{{ seleccionada.tipoDocumentoCliente }} {{ seleccionada.documentoCliente }}</strong>
+          </div>
+
+          <div>
+            <span>Estado</span>
+            <strong>{{ seleccionada.estadoCotizacion }}</strong>
+          </div>
+
+          <div>
+            <span>Total</span>
+            <strong>S/ {{ seleccionada.total | number:'1.2-2' }}</strong>
+          </div>
+        </div>
+
+        <div class="modal-detail-list" *ngIf="seleccionada.detalles.length > 0">
+          <div class="modal-detail-item" *ngFor="let detalle of seleccionada.detalles">
+            <div>
+              <strong>{{ detalle.elementoNombre || detalle.elemento }}</strong>
+              <small>{{ detalle.tipoElemento }} · {{ detalle.codigo || 'Sin código' }}</small>
+              <p *ngIf="detalle.observacion">{{ detalle.observacion }}</p>
+            </div>
+
+            <div class="modal-detail-amount">
+              <span>{{ detalle.cantidad }} x S/ {{ detalle.precioUnitario | number:'1.2-2' }}</span>
+              <strong>S/ {{ detalle.subtotal | number:'1.2-2' }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="detail-empty" *ngIf="seleccionada.detalles.length === 0">
+          Esta cotización no tiene detalles registrados.
+        </div>
+      </div>
+
+      <div class="modal-actions" *ngIf="cotizacionSeleccionada as seleccionada">
+        <button
+          type="button"
+          class="btn btn-dark"
+          (click)="abrirPdf(seleccionada)"
+        >
+          Ver PDF
+        </button>
+
+        <button type="button" class="btn btn-secondary" (click)="cerrarDetalle()">
+          Cerrar
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" *ngIf="modalWhatsappVisible">
+    <div class="modal-card modal-whatsapp">
+      <div class="modal-header">
+        <div>
+          <h2>Confirmar envío por WhatsApp Web</h2>
+
+          <p *ngIf="whatsappPendiente">
+            {{ whatsappPendiente.codigoCotizacion }} · {{ whatsappPendiente.telefono }}
+          </p>
+        </div>
+
+        <button type="button" class="modal-close" (click)="cancelarConfirmacionWhatsApp()">
+          ×
+        </button>
+      </div>
+
+      <div class="modal-body" *ngIf="whatsappPendiente">
+        <div class="whatsapp-box">
+          <strong>WhatsApp Web fue abierto con el número del cliente y el mensaje preparado.</strong>
+
+          <p>
+            Como estás trabajando en localhost, el sistema abre WhatsApp Web y el PDF por separado.
+            Adjunta manualmente el PDF en el chat del cliente antes de confirmar el envío.
+          </p>
+
+          <textarea readonly rows="8">{{ whatsappPendiente.mensaje }}</textarea>
+        </div>
+
+        <div class="whatsapp-steps">
+          <div>
+            <span>1</span>
+            <p>Verifica que WhatsApp Web abrió el chat del cliente.</p>
+          </div>
+
+          <div>
+            <span>2</span>
+            <p>Verifica que se abrió el PDF de la cotización.</p>
+          </div>
+
+          <div>
+            <span>3</span>
+            <p>Adjunta el PDF manualmente en WhatsApp Web.</p>
+          </div>
+
+          <div>
+            <span>4</span>
+            <p>Envía el mensaje al cliente.</p>
+          </div>
+
+          <div>
+            <span>5</span>
+            <p>Confirma aquí para marcar la cotización como Respondida.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button
+          type="button"
+          class="btn btn-whatsapp"
+          (click)="confirmarWhatsAppEnviado()"
+          [disabled]="procesandoAccion && accionActual === 'confirmar-whatsapp'"
+        >
+          {{
+            procesandoAccion && accionActual === 'confirmar-whatsapp'
+              ? 'Confirmando...'
+              : 'Sí, ya envié por WhatsApp'
+          }}
+        </button>
+
+        <button type="button" class="btn btn-secondary" (click)="cancelarConfirmacionWhatsApp()">
+          Aún no lo envié
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
