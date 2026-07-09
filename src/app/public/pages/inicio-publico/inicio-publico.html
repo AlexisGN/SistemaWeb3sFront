@@ -16,6 +16,10 @@
     {{ errorInicio }}
   </div>
 
+  <div class="operation-message" *ngIf="mensajeOperacion">
+    {{ mensajeOperacion }}
+  </div>
+
   <div class="recent-marquee" *ngIf="productosNuevosCarrusel.length > 0">
     <div class="marquee-track">
       <article
@@ -62,8 +66,8 @@
             Ver producto
           </a>
 
-          <button type="button" (click)="abrirWhatsAppProducto(producto)">
-            Cotizar
+          <button type="button" (click)="accionCotizarProducto(producto)">
+            {{ clienteLogueado ? 'Agregar al carrito' : 'Cotizar' }}
           </button>
         </div>
       </article>
@@ -173,8 +177,8 @@
               />
             </div>
 
-            <button type="button" (click)="abrirWhatsAppProducto(producto)">
-              Cotizar
+            <button type="button" (click)="accionCotizarProducto(producto)">
+              {{ clienteLogueado ? 'Agregar al carrito' : 'Cotizar' }}
             </button>
           </div>
         </div>
@@ -283,7 +287,7 @@
   </div>
 </section>
 
-<section class="register-cta seccion-scroll seccion-cta">
+<section class="register-cta seccion-scroll seccion-cta" *ngIf="!clienteLogueado">
   <div>
     <span>Cliente 3S</span>
     <h2>Crea tu cuenta y cotiza más rápido</h2>
@@ -300,6 +304,26 @@
 
     <a routerLink="/cliente/registro" class="secondary">
       Crear cuenta
+    </a>
+  </div>
+</section>
+
+<section class="register-cta seccion-scroll seccion-cta" *ngIf="clienteLogueado">
+  <div>
+    <span>Carrito de cotización</span>
+    <h2>Continúa armando tu solicitud</h2>
+    <p>
+      Agrega productos al carrito y envía una solicitud conjunta al equipo comercial 3S.
+    </p>
+  </div>
+
+  <div class="cta-actions">
+    <a routerLink="/cliente/carrito">
+      Ver carrito
+    </a>
+
+    <a routerLink="/productos" class="secondary">
+      Ver más productos
     </a>
   </div>
 </section>
@@ -323,7 +347,8 @@
       <strong>2</strong>
       <h3>Envía tu solicitud</h3>
       <p>
-        Cotiza por WhatsApp o agrega varios productos a tu carrito de cotización.
+        Si tienes cuenta cliente, agrega varios productos al carrito. Si aún no has iniciado sesión,
+        puedes cotizar un producto por WhatsApp.
       </p>
     </article>
 

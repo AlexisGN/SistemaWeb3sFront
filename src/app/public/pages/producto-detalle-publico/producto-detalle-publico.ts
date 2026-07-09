@@ -9,6 +9,8 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
+import { ClienteWebService } from '../../../core/services/cliente-web.service';
+import { CarritoCotizacionService } from '../../../core/services/carrito-cotizacion.service';
 
 import {
   ImagenPublica,
@@ -56,8 +58,10 @@ export class ProductoDetallePublicoComponent implements OnInit, OnDestroy {
     private route: ActivatedRoute,
     private router: Router,
     private publicoService: PublicoService,
+    private clienteWebService: ClienteWebService,
+    private carritoCotizacionService: CarritoCotizacionService,
     private cd: ChangeDetectorRef
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.verificarSesionCliente();
@@ -203,8 +207,7 @@ export class ProductoDetallePublicoComponent implements OnInit, OnDestroy {
       });
     }
 
-    localStorage.setItem('carritoCotizacion3S', JSON.stringify(carritoActual));
-    window.dispatchEvent(new Event('carritoCotizacionActualizado'));
+    this.carritoCotizacionService.guardarItems(carritoActual, producto.nombre);
 
     this.mensajeOperacion = 'Producto agregado al carrito de cotización.';
     this.cd.markForCheck();
@@ -254,23 +257,12 @@ export class ProductoDetallePublicoComponent implements OnInit, OnDestroy {
   }
 
   private obtenerCarrito(): ProductoCarritoCotizacion[] {
-    const carrito = localStorage.getItem('carritoCotizacion3S');
-
-    if (!carrito) {
-      return [];
-    }
-
-    try {
-      const items = JSON.parse(carrito);
-      return Array.isArray(items) ? items : [];
-    } catch {
-      return [];
-    }
+    return this.carritoCotizacionService.obtenerItems<ProductoCarritoCotizacion>();
   }
 
   private verificarSesionCliente(): void {
-    this.clienteLogueado = !!localStorage.getItem('clienteWebSesion');
-  }
+  this.clienteLogueado = !!this.clienteWebService.obtenerSesion();
+}
 
   trackByImagen(_: number, imagen: ImagenPublica): number {
     return imagen.idImagen;

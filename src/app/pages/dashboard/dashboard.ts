@@ -10,9 +10,13 @@ import { ProveedorService } from '../../core/services/proveedor';
 import { InventarioService } from '../../core/services/inventario';
 import { ClienteService } from '../../core/services/cliente';
 import { CompraService } from '../../core/services/compra';
+import { VentaService } from '../../core/services/venta';
+import { CajaService } from '../../core/services/caja.service';
+import { SessionService } from '../../core/services/session.service';
 
 import { MovimientoStockListado } from '../../core/models/inventario.model';
 import { CompraListado } from '../../core/models/compra.model';
+import { VentaListado } from '../../core/models/venta.model';
 
 interface DashboardCard {
   label: string;
@@ -89,7 +93,7 @@ export class DashboardComponent implements OnInit {
       value: '0',
       description: 'Productos por debajo del mínimo',
       tag: 'ST',
-      status: 'warning'
+      status: 'ready'
     },
     {
       label: 'Saldo de caja',
@@ -103,7 +107,7 @@ export class DashboardComponent implements OnInit {
       value: '0',
       description: 'Compras con saldo pendiente',
       tag: 'CP',
-      status: 'warning'
+      status: 'ready'
     }
   ];
 
@@ -153,6 +157,9 @@ export class DashboardComponent implements OnInit {
     private inventarioService: InventarioService,
     private clienteService: ClienteService,
     private compraService: CompraService,
+    private ventaService: VentaService,
+    private cajaService: CajaService,
+    private sessionService: SessionService,
     private cdr: ChangeDetectorRef
   ) { }
 
@@ -164,6 +171,8 @@ export class DashboardComponent implements OnInit {
     this.cargarResumenProveedores();
     this.cargarResumenInventario();
     this.cargarResumenComprasPendientesPago();
+    this.cargarResumenVentasDia();
+    this.cargarResumenCaja();
     this.cargarMovimientosRecientes();
   }
 
@@ -311,6 +320,127 @@ export class DashboardComponent implements OnInit {
       });
   }
 
+  cargarResumenVentasDia(): void {
+    const fechaHoy = this.obtenerFechaActualIso();
+    const tamanioPagina = 100;
+
+    this.ventaService
+      .listar('', '', '', '', fechaHoy, fechaHoy, 1, tamanioPagina)
+      .subscribe({
+        next: (primeraPagina) => {
+          const totalPaginas = primeraPagina.totalPaginas ?? 1;
+
+          if (totalPaginas <= 1) {
+            const totalVentas = this.sumarVentasDia(primeraPagina.items ?? []);
+
+            this.actualizarCard('Ventas del día', this.formatearSoles(totalVentas));
+            this.cdr.detectChanges();
+            return;
+          }
+
+          const solicitudes = [];
+
+          for (let pagina = 2; pagina <= totalPaginas; pagina++) {
+            solicitudes.push(
+              this.ventaService.listar('', '', '', '', fechaHoy, fechaHoy, pagina, tamanioPagina)
+            );
+          }
+
+          forkJoin(solicitudes).subscribe({
+            next: (paginasRestantes) => {
+              let ventas: VentaListado[] = [...(primeraPagina.items ?? [])];
+
+              paginasRestantes.forEach((pagina) => {
+                ventas = ventas.concat(pagina.items ?? []);
+              });
+
+              const totalVentas = this.sumarVentasDia(ventas);
+
+              this.actualizarCard('Ventas del día', this.formatearSoles(totalVentas));
+              this.cdr.detectChanges();
+            },
+            error: (err) => {
+              console.error('Error cargando páginas de ventas del día:', err);
+
+              const totalVentas = this.sumarVentasDia(primeraPagina.items ?? []);
+
+              this.actualizarCard('Ventas del día', this.formatearSoles(totalVentas));
+              this.cdr.detectChanges();
+            }
+          });
+        },
+        error: (err) => {
+          console.error('Error cargando ventas del día:', err);
+          this.actualizarCard('Ventas del día', 'S/ 0.00');
+          this.cdr.detectChanges();
+        }
+      });
+  }
+
+  cargarResumenCaja(): void {
+    const idUsuarioSesion = this.obtenerIdUsuarioSesion();
+
+    const idsUsuarios = Array.from(
+      new Set(
+        [idUsuarioSesion, 1]
+          .map(id => Number(id || 0))
+          .filter(id => id > 0)
+      )
+    );
+
+    this.consultarCajaPorUsuarios(idsUsuarios, 0);
+  }
+
+  private consultarCajaPorUsuarios(idsUsuarios: number[], indice: number): void {
+    if (indice >= idsUsuarios.length) {
+      this.actualizarCard('Saldo de caja', 'S/ 0.00');
+      this.cdr.detectChanges();
+      return;
+    }
+
+    const idUsuario = idsUsuarios[indice];
+
+    this.cajaService.obtenerCajaActiva(idUsuario).subscribe({
+      next: (cajaActiva) => {
+        if (!cajaActiva) {
+          this.consultarCajaPorUsuarios(idsUsuarios, indice + 1);
+          return;
+        }
+
+        const idCaja = this.obtenerIdCajaDesdeRespuesta(cajaActiva);
+
+        this.cajaService.obtenerResumen(idUsuario, idCaja).subscribe({
+          next: (resumen) => {
+            const saldoResumen = this.obtenerSaldoCajaDesdeRespuesta(resumen);
+            const saldoCajaActiva = this.obtenerSaldoCajaDesdeRespuesta(cajaActiva);
+
+            const saldo = saldoResumen !== 0 ? saldoResumen : saldoCajaActiva;
+
+            this.actualizarCard('Saldo de caja', this.formatearSoles(saldo));
+            this.cdr.detectChanges();
+          },
+          error: (err) => {
+            console.error('Error cargando resumen de caja:', err);
+
+            const saldoCajaActiva = this.obtenerSaldoCajaDesdeRespuesta(cajaActiva);
+
+            if (saldoCajaActiva !== 0) {
+              this.actualizarCard('Saldo de caja', this.formatearSoles(saldoCajaActiva));
+              this.cdr.detectChanges();
+              return;
+            }
+
+            this.consultarCajaPorUsuarios(idsUsuarios, indice + 1);
+          }
+        });
+      },
+      error: (err) => {
+        console.error(`Error cargando caja activa para usuario ${idUsuario}:`, err);
+        this.consultarCajaPorUsuarios(idsUsuarios, indice + 1);
+      }
+    });
+  }
+
   cargarMovimientosRecientes(): void {
     this.inventarioService.listarMovimientosRecientes(3).subscribe({
       next: (data) => {
@@ -323,6 +453,26 @@ export class DashboardComponent implements OnInit {
         this.cdr.detectChanges();
       }
     });
+  }
+
+  obtenerEstadoCard(card: DashboardCard): string {
+    if (
+      card.label === 'Productos con stock bajo' ||
+      card.label === 'Saldo de caja' ||
+      card.label === 'Compras pendientes de pago'
+    ) {
+      return 'Activo';
+    }
+
+    if (card.status === 'ready') {
+      return 'Activo';
+    }
+
+    if (card.status === 'money') {
+      return 'Operativo';
+    }
+
+    return 'Pendiente';
   }
 
   obtenerSignoMovimiento(tipoMovimiento: string): string {
@@ -339,6 +489,12 @@ export class DashboardComponent implements OnInit {
     return '±';
   }
 
+  private obtenerIdUsuarioSesion(): number {
+    const idUsuario = Number(this.sessionService.obtenerIdUsuario() || 0);
+
+    return idUsuario > 0 ? idUsuario : 1;
+  }
+
   private contarComprasPendientesPago(compras: CompraListado[]): number {
     return compras.filter((compra) => {
       const estadoCompra = (compra.estadoCompra || '').toLowerCase();
@@ -346,6 +502,213 @@ export class DashboardComponent implements OnInit {
 
       return !estadoCompra.includes('anulada') && saldoPendiente > 0;
     }).length;
+  }
+
+  private sumarVentasDia(ventas: VentaListado[]): number {
+    return ventas
+      .filter((venta) => {
+        const item = venta as any;
+
+        const estadoVenta = String(
+          item.estadoVenta ??
+          item.EstadoVenta ??
+          item.estado ??
+          item.Estado ??
+          ''
+        ).toLowerCase();
+
+        return !estadoVenta.includes('anulada') && !estadoVenta.includes('cancelada');
+      })
+      .reduce((total, venta) => total + this.obtenerTotalVenta(venta), 0);
+  }
+
+  private obtenerTotalVenta(venta: VentaListado): number {
+    const item = venta as any;
+
+    const total =
+      item.total ??
+      item.Total ??
+      item.totalVenta ??
+      item.TotalVenta ??
+      item.importeTotal ??
+      item.ImporteTotal ??
+      item.montoTotal ??
+      item.MontoTotal ??
+      item.totalPagado ??
+      item.TotalPagado ??
+      0;
+
+    return Number(total || 0);
+  }
+
+  private obtenerIdCajaDesdeRespuesta(caja: any): number | null {
+    if (!caja) {
+      return null;
+    }
+
+    const idCaja =
+      caja.idCaja ??
+      caja.IdCaja ??
+      caja.id ??
+      caja.Id ??
+      null;
+
+    const valor = Number(idCaja || 0);
+
+    return valor > 0 ? valor : null;
+  }
+
+  private obtenerSaldoCajaDesdeRespuesta(data: any): number {
+    if (!data) {
+      return 0;
+    }
+
+    const saldoDirecto = this.obtenerNumeroDesdeRespuesta(data, [
+      'saldoEsperado',
+      'SaldoEsperado',
+      'saldoEsperadoCaja',
+      'SaldoEsperadoCaja',
+      'saldoActual',
+      'SaldoActual',
+      'saldoCaja',
+      'SaldoCaja',
+      'saldoDisponible',
+      'SaldoDisponible',
+      'saldoFinal',
+      'SaldoFinal',
+      'saldoOperativo',
+      'SaldoOperativo',
+      'saldoCalculado',
+      'SaldoCalculado',
+      'totalSaldo',
+      'TotalSaldo',
+      'montoActual',
+      'MontoActual'
+    ]);
+
+    if (saldoDirecto !== 0) {
+      return saldoDirecto;
+    }
+
+    const saldoInicial = this.obtenerNumeroDesdeRespuesta(data, [
+      'saldoInicial',
+      'SaldoInicial',
+      'montoInicial',
+      'MontoInicial',
+      'montoApertura',
+      'MontoApertura',
+      'saldoApertura',
+      'SaldoApertura'
+    ]);
+
+    const totalIngresos = this.obtenerNumeroDesdeRespuesta(data, [
+      'totalIngresos',
+      'TotalIngresos'
+    ]);
+
+    const ingresosDetalle =
+      this.obtenerNumeroDesdeRespuesta(data, [
+        'ingresosPorVenta',
+        'IngresosPorVenta',
+        'ingresosVenta',
+        'IngresosVenta',
+        'totalIngresosVenta',
+        'TotalIngresosVenta'
+      ]) +
+      this.obtenerNumeroDesdeRespuesta(data, [
+        'ingresosManuales',
+        'IngresosManuales',
+        'ingresosManual',
+        'IngresosManual',
+        'totalIngresosManuales',
+        'TotalIngresosManuales'
+      ]);
+
+    const ingresos = totalIngresos !== 0 ? totalIngresos : ingresosDetalle;
+
+    const totalEgresos = this.obtenerNumeroDesdeRespuesta(data, [
+      'totalEgresos',
+      'TotalEgresos'
+    ]);
+
+    const egresosDetalle =
+      this.obtenerNumeroDesdeRespuesta(data, [
+        'egresosPorCompra',
+        'EgresosPorCompra',
+        'egresosCompra',
+        'EgresosCompra',
+        'totalEgresosCompra',
+        'TotalEgresosCompra'
+      ]) +
+      this.obtenerNumeroDesdeRespuesta(data, [
+        'egresosManuales',
+        'EgresosManuales',
+        'egresosManual',
+        'EgresosManual',
+        'totalEgresosManuales',
+        'TotalEgresosManuales'
+      ]);
+
+    const egresos = totalEgresos !== 0 ? totalEgresos : egresosDetalle;
+
+    const ajustes = this.obtenerNumeroDesdeRespuesta(data, [
+      'ajustes',
+      'Ajustes',
+      'totalAjustes',
+      'TotalAjustes'
+    ]);
+
+    if (saldoInicial !== 0 || ingresos !== 0 || egresos !== 0 || ajustes !== 0) {
+      return saldoInicial + ingresos - egresos + ajustes;
+    }
+
+    return 0;
+  }
+
+  private obtenerNumeroDesdeRespuesta(data: any, campos: string[]): number {
+    for (const campo of campos) {
+      const valor = data?.[campo];
+
+      if (valor === null || valor === undefined || valor === '') {
+        continue;
+      }
+
+      if (typeof valor === 'number') {
+        return Number(valor || 0);
+      }
+
+      const texto = String(valor)
+        .replace(/S\/?/gi, '')
+        .replace(/\s/g, '')
+        .replace(/,/g, '')
+        .trim();
+
+      const numero = Number(texto);
+
+      if (!Number.isNaN(numero)) {
+        return numero;
+      }
+    }
+
+    return 0;
+  }
+
+  private obtenerFechaActualIso(): string {
+    const hoy = new Date();
+    const anio = hoy.getFullYear();
+    const mes = String(hoy.getMonth() + 1).padStart(2, '0');
+    const dia = String(hoy.getDate()).padStart(2, '0');
+
+    return `${anio}-${mes}-${dia}`;
+  }
+
+  private formatearSoles(valor: number): string {
+    const numero = Number(valor || 0);
+
+    return `S/ ${numero.toLocaleString('es-PE', {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2
+    })}`;
   }
 
   private actualizarCard(label: string, value: string): void {

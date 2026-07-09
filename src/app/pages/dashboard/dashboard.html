@@ -21,24 +21,13 @@
   </div>
 
   <div class="metrics-grid">
-    <article
-      class="metric-card"
-      *ngFor="let card of cards"
-      [class.ready]="card.status === 'ready'"
-      [class.warning]="card.status === 'warning'"
-      [class.money]="card.status === 'money'"
-    >
+    <article class="metric-card" *ngFor="let card of cards" [class.ready]="card.status === 'ready'"
+      [class.warning]="card.status === 'warning'" [class.money]="card.status === 'money'">
       <div class="metric-top">
         <span class="metric-tag">{{ card.tag }}</span>
 
         <span class="metric-state">
-          {{
-            card.status === 'ready'
-              ? 'Activo'
-              : card.status === 'money'
-                ? 'Operativo'
-                : 'Pendiente'
-          }}
+          {{ obtenerEstadoCard(card) }}
         </span>
       </div>
 
@@ -58,12 +47,8 @@
       </div>
 
       <div class="quick-grid">
-        <a
-          *ngFor="let action of quickActions"
-          class="quick-action"
-          [class.disabled]="action.disabled"
-          [routerLink]="action.disabled ? null : action.route"
-        >
+        <a *ngFor="let action of quickActions" class="quick-action" [class.disabled]="action.disabled"
+          [routerLink]="action.disabled ? null : action.route">
           <span>{{ action.label }}</span>
           <small>{{ action.description }}</small>
         </a>
@@ -141,12 +126,9 @@
 
             <ng-container *ngIf="movimientosRecientes.length > 0; else sinMovimientos">
               <div class="movement-preview" *ngFor="let mov of movimientosRecientes">
-                <span
-                  class="movement-preview__type"
-                  [class.entrada]="mov.tipoMovimiento.toLowerCase() === 'entrada'"
+                <span class="movement-preview__type" [class.entrada]="mov.tipoMovimiento.toLowerCase() === 'entrada'"
                   [class.salida]="mov.tipoMovimiento.toLowerCase() === 'salida'"
-                  [class.ajuste]="mov.tipoMovimiento.toLowerCase() === 'ajuste'"
-                >
+                  [class.ajuste]="mov.tipoMovimiento.toLowerCase() === 'ajuste'">
                   {{ obtenerSignoMovimiento(mov.tipoMovimiento) }}
                 </span>
 

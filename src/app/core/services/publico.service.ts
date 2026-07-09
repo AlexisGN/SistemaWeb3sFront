@@ -4,10 +4,12 @@ import { map, Observable } from 'rxjs';
 
 import { environment } from '../../../environments/environment';
 import {
+  BusquedaPublicaResponse,
   CategoriaPublica,
   ImagenPublica,
   InicioPublicoResponse,
   MarcaPublica,
+  NosotrosPublicoResponse,
   ProductoDetallePublico,
   ProductoPublico,
   ProductoPublicoFiltros,
@@ -23,7 +25,7 @@ export class PublicoService {
   private readonly apiUrl = `${environment.apiUrl}/publico`;
   private readonly baseArchivosUrl = environment.apiUrl.replace(/\/api\/?$/, '');
 
-  constructor(private http: HttpClient) {}
+  constructor(private http: HttpClient) { }
 
   obtenerInicio(): Observable<InicioPublicoResponse> {
     return this.http.get<InicioPublicoResponse>(`${this.apiUrl}/inicio`).pipe(
@@ -37,6 +39,43 @@ export class PublicoService {
           this.mapearProducto(producto, producto.nuevo)
         ),
         servicios: (response.servicios || []).map(servicio => this.mapearServicio(servicio))
+      }))
+    );
+  }
+
+  obtenerNosotros(): Observable<NosotrosPublicoResponse> {
+    return this.http.get<NosotrosPublicoResponse>(`${this.apiUrl}/nosotros`).pipe(
+      map(response => ({
+        ...response,
+        empresa: response.empresa,
+        compromisos: response.compromisos || [],
+        industrias: response.industrias || [],
+        valores: response.valores || []
+      }))
+    );
+  }
+
+  buscarGlobal(q: string, limitePorTipo: number = 8): Observable<BusquedaPublicaResponse> {
+    let params = new HttpParams()
+      .set('q', q.trim())
+      .set('limitePorTipo', limitePorTipo);
+
+    return this.http.get<BusquedaPublicaResponse>(`${this.apiUrl}/buscar`, { params }).pipe(
+      map(response => ({
+        query: response.query || '',
+        productos: (response.productos || []).map(producto =>
+          this.mapearProducto(producto, producto.nuevo)
+        ),
+        servicios: (response.servicios || []).map(servicio =>
+          this.mapearServicio(servicio)
+        ),
+        categorias: (response.categorias || []).map(categoria =>
+          this.mapearCategoria(categoria)
+        ),
+        marcas: (response.marcas || []).map(marca =>
+          this.mapearMarca(marca)
+        ),
+        totalResultados: response.totalResultados || 0
       }))
     );
   }

@@ -89,3 +89,52 @@ export interface ServicioPublico {
 export interface ServicioDetallePublico extends ServicioPublico {
   imagenes: ImagenPublica[];
 }
+export interface BusquedaPublicaResponse {
+  query: string;
+  productos: ProductoPublico[];
+  servicios: ServicioPublico[];
+  categorias: CategoriaPublica[];
+  marcas: MarcaPublica[];
+  totalResultados: number;
+}
+export interface NosotrosPublicoResponse {
+  empresa: EmpresaPublica;
+  titulo: string;
+  subtitulo: string;
+  descripcionPrincipal: string;
+  mision: string;
+  vision: string;
+  compromisos: CompromisoPublico[];
+  industrias: SectorIndustrialPublico[];
+  valores: ValorCorporativoPublico[];
+}
+
+export interface EmpresaPublica {
+  idEmpresa: number;
+  razonSocial: string;
+  nombreComercial: string;
+  ruc: string;
+  rubro: string;
+  telefono: string;
+  correo: string;
+  direccion: string;
+  sitioWeb: string;
+}
+
+export interface CompromisoPublico {
+  titulo: string;
+  descripcion: string;
+  icono: string;
+}
+
+export interface SectorIndustrialPublico {
+  idSectorIndustrial: number;
+  nombre: string;
+  descripcion: string;
+}
+
+export interface ValorCorporativoPublico {
+  idValor: number;
+  nombre: string;
+  descripcion: string;
+}

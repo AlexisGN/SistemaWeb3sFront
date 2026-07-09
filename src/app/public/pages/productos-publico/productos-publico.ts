@@ -9,12 +9,14 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { combineLatest, forkJoin, Subject, takeUntil } from 'rxjs';
+import { CarritoCotizacionService } from '../../../core/services/carrito-cotizacion.service';
 
 import {
   CategoriaPublica,
   MarcaPublica,
   ProductoPublico
 } from '../../../core/models/publico.model';
+import { ClienteWebService } from '../../../core/services/cliente-web.service';
 import { PublicoService } from '../../../core/services/publico.service';
 
 interface ProductoCarritoCotizacion {
@@ -63,15 +65,22 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
 
   private destroy$ = new Subject<void>();
 
+  private readonly actualizarSesionClienteHandler = () => {
+    this.verificarSesionCliente();
+  };
+
   constructor(
     private route: ActivatedRoute,
     private router: Router,
     private publicoService: PublicoService,
+    private clienteWebService: ClienteWebService,
+    private carritoCotizacionService: CarritoCotizacionService,
     private cd: ChangeDetectorRef
-  ) {}
+  ) { }
 
   ngOnInit(): void {
     this.verificarSesionCliente();
+    this.registrarEventosSesionCliente();
     this.cargarFiltros();
 
     combineLatest([
@@ -106,6 +115,8 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    this.quitarEventosSesionCliente();
+
     this.destroy$.next();
     this.destroy$.complete();
   }
@@ -189,6 +200,8 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
   }
 
   cargarProductos(agregar: boolean): void {
+    this.verificarSesionCliente();
+
     if (agregar) {
       this.cargandoMas = true;
     } else {
@@ -208,7 +221,10 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
       .pipe(takeUntil(this.destroy$))
       .subscribe({
         next: response => {
-          const items = response.items || [];
+          const items = (response.items || []).map(producto => ({
+            ...producto,
+            cantidad: Number(producto.cantidad || 1)
+          }));
 
           this.productos = agregar
             ? [...this.productos, ...items]
@@ -243,12 +259,14 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
 
   seleccionarCategoria(idCategoria: number | null): void {
     this.idCategoriaSeleccionada = idCategoria;
+    this.idMarcaSeleccionada = null;
     this.origenRuta = idCategoria ? 'categoria-detalle' : 'productos';
     this.reiniciarYCargarProductos();
   }
 
   seleccionarMarca(idMarca: number | null): void {
     this.idMarcaSeleccionada = idMarca;
+    this.idCategoriaSeleccionada = null;
     this.origenRuta = idMarca ? 'marca-detalle' : 'productos';
     this.reiniciarYCargarProductos();
   }
@@ -285,6 +303,8 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
   }
 
   accionCotizar(producto: ProductoPublico): void {
+    this.verificarSesionCliente();
+
     if (this.clienteLogueado) {
       this.agregarAlCarrito(producto);
       return;
@@ -294,15 +314,29 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
   }
 
   agregarAlCarrito(producto: ProductoPublico): void {
+    this.verificarSesionCliente();
+
+    if (!this.clienteLogueado) {
+      this.abrirWhatsAppProducto(producto);
+      return;
+    }
+
     this.normalizarCantidad(producto);
 
     const carritoActual = this.obtenerCarrito();
     const idProducto = producto.idProducto || producto.id;
 
+    if (!idProducto) {
+      this.mensajeOperacion = 'No se pudo agregar el producto al carrito.';
+      this.cd.markForCheck();
+      return;
+    }
+
+    const cantidadSeleccionada = Number(producto.cantidad || 1);
     const itemExistente = carritoActual.find(item => item.idProducto === idProducto);
 
     if (itemExistente) {
-      itemExistente.cantidad += producto.cantidad;
+      itemExistente.cantidad += cantidadSeleccionada;
     } else {
       carritoActual.push({
         idProducto,
@@ -312,13 +346,12 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
         categoria: producto.categoria,
         marca: producto.marca,
         imagenUrl: producto.imagenUrl,
-        cantidad: producto.cantidad,
+        cantidad: cantidadSeleccionada,
         observacion: ''
       });
     }
 
-    localStorage.setItem('carritoCotizacion3S', JSON.stringify(carritoActual));
-    window.dispatchEvent(new Event('carritoCotizacionActualizado'));
+    this.carritoCotizacionService.guardarItems(carritoActual, producto.nombre);
 
     this.mensajeOperacion = 'Producto agregado al carrito de cotización.';
     this.cd.markForCheck();
@@ -360,22 +393,26 @@ export class ProductosPublicoComponent implements OnInit, OnDestroy {
   }
 
   private obtenerCarrito(): ProductoCarritoCotizacion[] {
-    const carrito = localStorage.getItem('carritoCotizacion3S');
-
-    if (!carrito) {
-      return [];
-    }
-
-    try {
-      const items = JSON.parse(carrito);
-      return Array.isArray(items) ? items : [];
-    } catch {
-      return [];
-    }
+    return this.carritoCotizacionService.obtenerItems<ProductoCarritoCotizacion>();
   }
 
   private verificarSesionCliente(): void {
-    this.clienteLogueado = !!localStorage.getItem('clienteWebSesion');
+    const sesionCliente = this.clienteWebService.obtenerSesion();
+
+    this.clienteLogueado = !!sesionCliente;
+    this.cd.markForCheck();
+  }
+
+  private registrarEventosSesionCliente(): void {
+    window.addEventListener('storage', this.actualizarSesionClienteHandler);
+    window.addEventListener('clienteWebSesionActualizada', this.actualizarSesionClienteHandler);
+    window.addEventListener('carritoCotizacionActualizado', this.actualizarSesionClienteHandler);
+  }
+
+  private quitarEventosSesionCliente(): void {
+    window.removeEventListener('storage', this.actualizarSesionClienteHandler);
+    window.removeEventListener('clienteWebSesionActualizada', this.actualizarSesionClienteHandler);
+    window.removeEventListener('carritoCotizacionActualizado', this.actualizarSesionClienteHandler);
   }
 
   trackByProducto(_: number, producto: ProductoPublico): number {

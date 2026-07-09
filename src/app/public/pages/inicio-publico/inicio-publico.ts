@@ -11,18 +11,31 @@ import {
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { Subject, takeUntil } from 'rxjs';
-
+import { CarritoCotizacionService } from '../../../core/services/carrito-cotizacion.service';
 import {
   CategoriaPublica,
   MarcaPublica,
   ProductoPublico,
   ServicioPublico
 } from '../../../core/models/publico.model';
+import { ClienteWebService } from '../../../core/services/cliente-web.service';
 import { PublicoService } from '../../../core/services/publico.service';
 
 type CategoriaConProductos = CategoriaPublica & {
   productosInicio: ProductoPublico[];
 };
+
+interface ProductoCarritoCotizacion {
+  idProducto: number;
+  idElementoCatalogo: number;
+  codigo: string;
+  nombre: string;
+  categoria: string;
+  marca: string | null;
+  imagenUrl: string;
+  cantidad: number;
+  observacion: string;
+}
 
 @Component({
   selector: 'app-inicio-publico',
@@ -37,6 +50,9 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
 
   cargandoInicio = false;
   errorInicio = '';
+  mensajeOperacion = '';
+
+  clienteLogueado = false;
 
   categorias: CategoriaPublica[] = [];
   categoriasConProductos: CategoriaConProductos[] = [];
@@ -56,14 +72,22 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
 
   private destroy$ = new Subject<void>();
 
+  private readonly actualizarSesionClienteHandler = () => {
+    this.verificarSesionCliente();
+  };
+
   constructor(
     private route: ActivatedRoute,
     private publicoService: PublicoService,
+    private clienteWebService: ClienteWebService,
     private cd: ChangeDetectorRef,
+    private carritoCotizacionService: CarritoCotizacionService,
     private ngZone: NgZone
-  ) {}
+  ) { }
 
   ngOnInit(): void {
+    this.verificarSesionCliente();
+    this.registrarEventosSesionCliente();
     this.cargarInicio();
 
     this.route.queryParamMap
@@ -73,6 +97,7 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
 
         if (!texto) {
           this.busqueda = '';
+          this.cd.markForCheck();
           return;
         }
 
@@ -84,6 +109,8 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
             block: 'start'
           });
         }, 100);
+
+        this.cd.markForCheck();
       });
   }
 
@@ -92,6 +119,7 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   ngOnDestroy(): void {
+    this.quitarEventosSesionCliente();
     this.observadorSecciones?.disconnect();
 
     if (this.timeoutEfectoSecciones) {
@@ -103,8 +131,11 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
   }
 
   cargarInicio(): void {
+    this.verificarSesionCliente();
+
     this.cargandoInicio = true;
     this.errorInicio = '';
+    this.mensajeOperacion = '';
     this.cd.markForCheck();
 
     this.publicoService
@@ -119,12 +150,20 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
             ? [...this.marcas, ...this.marcas]
             : [];
 
-          this.productosNuevos = response.productosNuevos || [];
+          this.productosNuevos = (response.productosNuevos || []).map(producto => ({
+            ...producto,
+            cantidad: Number(producto.cantidad || 1)
+          }));
+
           this.productosNuevosCarrusel = this.productosNuevos.length > 0
             ? [...this.productosNuevos, ...this.productosNuevos]
             : [];
 
-          this.productos = response.productos || [];
+          this.productos = (response.productos || []).map(producto => ({
+            ...producto,
+            cantidad: Number(producto.cantidad || 1)
+          }));
+
           this.servicios = response.servicios || [];
 
           this.construirProductosPorCategoria();
@@ -153,6 +192,131 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
           this.cd.markForCheck();
         }
       });
+  }
+
+  normalizarCantidad(producto: ProductoPublico): void {
+    producto.cantidad = Number(producto.cantidad || 1);
+
+    if (producto.cantidad < 1) {
+      producto.cantidad = 1;
+    }
+
+    producto.cantidad = Math.floor(producto.cantidad);
+  }
+
+  accionCotizarProducto(producto: ProductoPublico): void {
+    this.verificarSesionCliente();
+
+    if (this.clienteLogueado) {
+      this.agregarAlCarrito(producto);
+      return;
+    }
+
+    this.abrirWhatsAppProducto(producto);
+  }
+
+  agregarAlCarrito(producto: ProductoPublico): void {
+    this.verificarSesionCliente();
+
+    if (!this.clienteLogueado) {
+      this.abrirWhatsAppProducto(producto);
+      return;
+    }
+
+    this.normalizarCantidad(producto);
+
+    const carritoActual = this.obtenerCarrito();
+    const idProducto = producto.idProducto || producto.id;
+
+    if (!idProducto) {
+      this.mensajeOperacion = 'No se pudo agregar el producto al carrito.';
+      this.cd.markForCheck();
+      return;
+    }
+
+    const cantidadSeleccionada = Number(producto.cantidad || 1);
+    const itemExistente = carritoActual.find(item => item.idProducto === idProducto);
+
+    if (itemExistente) {
+      itemExistente.cantidad += cantidadSeleccionada;
+    } else {
+      carritoActual.push({
+        idProducto,
+        idElementoCatalogo: producto.idElementoCatalogo,
+        codigo: producto.codigo,
+        nombre: producto.nombre,
+        categoria: producto.categoria,
+        marca: producto.marca,
+        imagenUrl: producto.imagenUrl,
+        cantidad: cantidadSeleccionada,
+        observacion: ''
+      });
+    }
+
+    this.carritoCotizacionService.guardarItems(carritoActual, producto.nombre);
+
+    this.mensajeOperacion = 'Producto agregado al carrito de cotización.';
+    this.cd.markForCheck();
+
+    window.setTimeout(() => {
+      this.mensajeOperacion = '';
+      this.cd.markForCheck();
+    }, 2600);
+  }
+
+  abrirWhatsAppProducto(producto: ProductoPublico): void {
+    this.normalizarCantidad(producto);
+
+    const telefono = '51948327667';
+
+    const mensaje = [
+      'Hola, deseo solicitar una cotización de este producto:',
+      '',
+      `Producto: ${producto.nombre}`,
+      `Código: ${producto.codigo}`,
+      `Categoría: ${producto.categoria}`,
+      `Marca: ${producto.marca || '3S'}`,
+      `Cantidad: ${producto.cantidad}`,
+      '',
+      'Quedo atento a la atención del área comercial.'
+    ].join('\n');
+
+    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+
+    window.open(url, '_blank');
+  }
+
+  abrirWhatsAppServicio(servicio: ServicioPublico): void {
+    const telefono = '51948327667';
+
+    const mensajeBase = servicio.mensajeWhatsApp?.trim();
+
+    const mensaje = mensajeBase
+      ? mensajeBase
+      : [
+        'Hola, deseo información sobre este servicio:',
+        '',
+        `Servicio: ${servicio.nombre}`,
+        `Detalle: ${servicio.descripcion}`,
+        servicio.sectorAplicacion ? `Sector de aplicación: ${servicio.sectorAplicacion}` : '',
+        servicio.requiereVisitaTecnica ? 'Requiere visita técnica: Sí' : '',
+        '',
+        'Quedo atento a su respuesta.'
+      ]
+        .filter(linea => linea !== '')
+        .join('\n');
+
+    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+
+    window.open(url, '_blank');
+  }
+
+  abrirWhatsAppGeneral(): void {
+    const telefono = '51948327667';
+    const mensaje = 'Hola, deseo información sobre los productos y servicios industriales de 3S.';
+    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
+
+    window.open(url, '_blank');
   }
 
   private construirProductosPorCategoria(): void {
@@ -208,69 +372,27 @@ export class InicioPublicoComponent implements OnInit, AfterViewInit, OnDestroy 
     return (valor || '').trim().toLowerCase();
   }
 
-  normalizarCantidad(producto: ProductoPublico): void {
-    producto.cantidad = Number(producto.cantidad || 1);
-
-    if (producto.cantidad < 1) {
-      producto.cantidad = 1;
-    }
-
-    producto.cantidad = Math.floor(producto.cantidad);
+  private obtenerCarrito(): ProductoCarritoCotizacion[] {
+    return this.carritoCotizacionService.obtenerItems<ProductoCarritoCotizacion>();
   }
 
-  abrirWhatsAppProducto(producto: ProductoPublico): void {
-    this.normalizarCantidad(producto);
+  private verificarSesionCliente(): void {
+    const sesionCliente = this.clienteWebService.obtenerSesion();
 
-    const telefono = '51948327667';
-
-    const mensaje = [
-      'Hola, quiero cotizar este producto:',
-      '',
-      `Producto: ${producto.nombre}`,
-      `Código: ${producto.codigo}`,
-      `Categoría: ${producto.categoria}`,
-      `Marca: ${producto.marca || '3S'}`,
-      `Cantidad: ${producto.cantidad}`,
-      '',
-      'Quedo atento a la disponibilidad y precio.'
-    ].join('\n');
-
-    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-
-    window.open(url, '_blank');
+    this.clienteLogueado = !!sesionCliente;
+    this.cd.markForCheck();
   }
 
-  abrirWhatsAppServicio(servicio: ServicioPublico): void {
-    const telefono = '51948327667';
-
-    const mensajeBase = servicio.mensajeWhatsApp?.trim();
-
-    const mensaje = mensajeBase
-      ? mensajeBase
-      : [
-          'Hola, deseo información sobre este servicio:',
-          '',
-          `Servicio: ${servicio.nombre}`,
-          `Detalle: ${servicio.descripcion}`,
-          servicio.sectorAplicacion ? `Sector de aplicación: ${servicio.sectorAplicacion}` : '',
-          servicio.requiereVisitaTecnica ? 'Requiere visita técnica: Sí' : '',
-          '',
-          'Quedo atento a su respuesta.'
-        ]
-          .filter(linea => linea !== '')
-          .join('\n');
-
-    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-
-    window.open(url, '_blank');
+  private registrarEventosSesionCliente(): void {
+    window.addEventListener('storage', this.actualizarSesionClienteHandler);
+    window.addEventListener('clienteWebSesionActualizada', this.actualizarSesionClienteHandler);
+    window.addEventListener('carritoCotizacionActualizado', this.actualizarSesionClienteHandler);
   }
 
-  abrirWhatsAppGeneral(): void {
-    const telefono = '51948327667';
-    const mensaje = 'Hola, deseo información sobre los productos y servicios industriales de 3S.';
-    const url = `https://wa.me/${telefono}?text=${encodeURIComponent(mensaje)}`;
-
-    window.open(url, '_blank');
+  private quitarEventosSesionCliente(): void {
+    window.removeEventListener('storage', this.actualizarSesionClienteHandler);
+    window.removeEventListener('clienteWebSesionActualizada', this.actualizarSesionClienteHandler);
+    window.removeEventListener('carritoCotizacionActualizado', this.actualizarSesionClienteHandler);
   }
 
   trackByCategoria(_: number, categoria: CategoriaPublica): number {

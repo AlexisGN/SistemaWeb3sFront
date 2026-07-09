@@ -9,82 +9,18 @@
     </p>
 
     <div class="hero-actions">
-      <a routerLink="/cliente/registro">
+      <a routerLink="/cliente/registro" *ngIf="!clienteLogueado">
         Crear cuenta para cotizar varios productos
+      </a>
+
+      <a routerLink="/cliente/carrito" *ngIf="clienteLogueado">
+        Ver carrito de cotización
       </a>
 
       <button type="button" (click)="limpiarFiltros()" *ngIf="hayFiltrosActivos">
         Ver catálogo completo
       </button>
     </div>
-  </div>
-</section>
-
-<section class="products-toolbar">
-  <form class="search-card" (ngSubmit)="buscarProductos()">
-    <div class="search-input">
-      <label>Buscar producto</label>
-
-      <input
-        type="text"
-        name="busqueda"
-        [(ngModel)]="busqueda"
-        placeholder="Busca por nombre, código, marca o categoría"
-      />
-    </div>
-
-    <button type="submit">
-      Buscar
-    </button>
-  </form>
-
-  <div class="filters-grid">
-    <div class="filter-group">
-      <label>Categoría</label>
-
-      <select
-        name="categoria"
-        [(ngModel)]="idCategoriaSeleccionada"
-        (change)="buscarProductos()"
-      >
-        <option [ngValue]="null">Todas las categorías</option>
-
-        <option
-          *ngFor="let categoria of categorias; trackBy: trackByCategoria"
-          [ngValue]="categoria.idCategoria || categoria.id"
-        >
-          {{ categoria.nombre }}
-        </option>
-      </select>
-    </div>
-
-    <div class="filter-group">
-      <label>Marca</label>
-
-      <select
-        name="marca"
-        [(ngModel)]="idMarcaSeleccionada"
-        (change)="buscarProductos()"
-      >
-        <option [ngValue]="null">Todas las marcas</option>
-
-        <option
-          *ngFor="let marca of marcas; trackBy: trackByMarca"
-          [ngValue]="marca.idMarca || marca.id"
-        >
-          {{ marca.nombre }}
-        </option>
-      </select>
-    </div>
-
-    <button
-      type="button"
-      class="clear-btn"
-      (click)="limpiarFiltros()"
-      *ngIf="hayFiltrosActivos"
-    >
-      Limpiar filtros
-    </button>
   </div>
 </section>
 
@@ -157,6 +93,10 @@
     <p *ngIf="!clienteLogueado">
       Cotiza productos individualmente por WhatsApp o crea una cuenta para armar una solicitud con varios productos.
     </p>
+  </div>
+
+  <div class="operation-message" *ngIf="busqueda.trim()">
+    Resultados relacionados con: “{{ busqueda }}”
   </div>
 
   <div class="public-status" *ngIf="cargando">
